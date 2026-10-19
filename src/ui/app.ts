@@ -8,9 +8,10 @@ import { inferSuggestions } from './inference';
 import { errorMessage } from './messages';
 import { sourceReaderFor } from './sourceFile';
 import * as transitions from './state';
-import type { AppState, FixChange, LineKindChange, MetaChange } from './state';
+import type { AppState, ChapterReviewChange, FixChange, LineKindChange, MetaChange } from './state';
 import { BusyIndicator } from './views/busy';
 import { CensorView } from './views/censor';
+import { ChapterReviewDialog } from './views/chapterReview';
 import { createEmptyState } from './views/emptyState';
 import { HeaderView } from './views/header';
 import { LayoutView } from './views/layout';
@@ -36,6 +37,7 @@ export class App implements EditorController {
   private readonly preview = new PreviewView(this);
   private readonly censor = new CensorView(this);
   private readonly settingsDialog = new SettingsDialog(this);
+  private readonly chapterReview = new ChapterReviewDialog(this);
   private readonly layout = new LayoutView({ toc: this.toc.element, preview: this.preview.element, censor: this.censor.element });
   private readonly toggleInferring: Toggle = (isOn) => this.censor.setInferring(isOn);
   private readonly toggleBusy: Toggle = (isOn) => {
@@ -46,7 +48,7 @@ export class App implements EditorController {
 
   constructor(root: HTMLElement) {
     const regions = [this.header.element, this.emptyState, this.layout.element, this.settingsDialog.element];
-    root.append(...regions, this.busy.element, this.toast.element);
+    root.append(...regions, this.chapterReview.element, this.busy.element, this.toast.element);
     bindFileDrop(document.body, (file) => this.open(file));
     this.render();
   }
@@ -56,6 +58,7 @@ export class App implements EditorController {
   }
 
   open(file: File): void {
+    if (this.chapterReview.element.open) return this.notify({ text: '请先关闭章节复查窗口' });
     if (this.isBusy) return this.notify({ text: '正在处理，请稍候' });
     const readSource = sourceReaderFor(file.name);
     if (!readSource) return this.notify({ text: '仅支持 txt 和 epub 文件', tone: 'error' });
@@ -104,6 +107,24 @@ export class App implements EditorController {
     if (!this.current.settings.llm.apiKey) return this.openSettings(MISSING_API_KEY_HINT);
     if (!transitions.pendingQueries(this.current).length) return this.notify({ text: '所有和谐词都已填写' });
     this.run(() => this.during(this.toggleInferring, () => this.applyInference()));
+  }
+
+  reviewChapters(): void {
+    if (!this.current.settings.llm.apiKey) return this.openSettings('请填写 DeepSeek API Key，以复查异常章节。');
+    this.run(() => this.chapterReview.open());
+  }
+
+  applyChapterReview(change: ChapterReviewChange): boolean {
+    const previous = this.current;
+    const next = transitions.applyChapterReview(previous, change);
+    if (next === previous) return false;
+    this.current = next;
+    this.run(() => {
+      this.render();
+      const lost = previous.fixes.size - this.current.fixes.size;
+      this.notify({ text: lost > 0 ? `目录已调整；${lost} 处替换需重新确认` : '已应用所选章节建议' });
+    });
+    return true;
   }
 
   openSettings(hint?: string): void {

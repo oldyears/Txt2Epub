@@ -96,16 +96,22 @@ function headingKeys(lines: Line[]): (string | undefined)[] {
 }
 
 export function mergeBrokenParagraphs(lines: Line[]): Line[] {
+  return mergeParagraphsWithStarts(lines).lines;
+}
+
+export function mergeParagraphsWithStarts(lines: Line[]): { lines: Line[]; starts: number[] } {
   const merged: Line[] = [];
-  for (const line of lines) {
+  const starts: number[] = [];
+  for (const [index, line] of lines.entries()) {
     const previous = merged.at(-1);
     if (previous && isBrokenContinuation(previous, line)) {
       merged[merged.length - 1] = { ...previous, text: previous.text + line.text };
     } else {
       merged.push(line);
+      starts.push(index);
     }
   }
-  return merged;
+  return { lines: merged, starts };
 }
 
 function isBrokenContinuation(previous: Line, current: Line): boolean {

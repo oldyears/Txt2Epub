@@ -1,5 +1,5 @@
 import type { Settings } from '../core/types';
-import type { AppState, FixChange, LineKindChange, MetaChange } from './state';
+import type { AppState, ChapterReviewChange, FixChange, LineKindChange, MetaChange } from './state';
 
 export interface EditorController {
   readonly state: AppState;
@@ -10,6 +10,8 @@ export interface EditorController {
   setMeta(change: MetaChange): void;
   revealHit(hitIndex: number): void;
   inferWithLlm(): void;
+  reviewChapters(): void;
+  applyChapterReview(change: ChapterReviewChange): boolean;
   openSettings(hint?: string): void;
   saveSettings(settings: Settings): void;
   exportEpub(): void;

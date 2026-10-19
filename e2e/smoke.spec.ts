@@ -101,6 +101,56 @@ test('keeps the current book and fixes when an EPUB has a broken spine', async (
   await expect(censor.getByRole('textbox', { name: '第 1 处替换词' })).toHaveValue('封路');
 });
 
+test('previews LLM chapter splits and applies them only after confirmation @mobile', async ({ page }) => {
+  await enableChapterReview(page);
+  await page.route('https://api.deepseek.com/chat/completions', route => {
+    const payload = JSON.parse(route.request().postDataJSON().messages[1].content);
+    const suggestions = payload.lines.filter((line: { text: string }) => ['《山城夜雨》', '江湖旧事'].includes(line.text))
+      .map((line: { id: number; text: string }) => ({ lineId: line.id, text: line.text, kind: 'volume', reason: '独立篇名' }));
+    return route.fulfill({ json: { choices: [{ message: { content: JSON.stringify({ suggestions }) }, finish_reason: 'stop' }] } });
+  });
+  const toc = await showPanel(page, 'toc');
+  await expect(toc).toContainText('共 1 章');
+  await page.getByRole('button', { name: '复查异常章节' }).click();
+  const dialog = page.getByRole('dialog', { name: '章节复查' });
+  await dialog.getByRole('button', { name: '开始复查', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('2 处建议待确认');
+  await page.screenshot({ path: `test-results/chapter-review-${test.info().project.name}.png`, fullPage: true });
+  await expect(tocEntry(toc, '《山城夜雨》')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '应用所选建议' }).click();
+  await expect(toc).toContainText('共 2 卷 · 1 章');
+  const preview = await openSection(page, '《山城夜雨》');
+  await expect(preview).toContainText('这是第一篇的正文');
+  const zip = await loadEpub(await exportDownload(page, '中性合集.epub'));
+  const documents = await chapterDocuments(zip);
+  expect(documents.find(text => text.includes('<h1>《山城夜雨》</h1>'))).toContain('这是第一篇的正文');
+});
+
+test('retains the directory and can export when chapter review fails', async ({ page, pageErrors }) => {
+  await enableChapterReview(page);
+  await page.route('https://api.deepseek.com/chat/completions', route => route.fulfill({ status: 401, body: '{}' }));
+  const toc = await showPanel(page, 'toc');
+  const before = await toc.innerText();
+  await page.getByRole('button', { name: '复查异常章节' }).click();
+  const dialog = page.getByRole('dialog', { name: '章节复查' });
+  await dialog.getByRole('button', { name: '开始复查', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('401');
+  expect(pageErrors).toEqual(['Failed to load resource: the server responded with a status of 401 (Unauthorized)']);
+  pageErrors.splice(0);
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click();
+  expect(await toc.innerText()).toBe(before);
+  await exportDownload(page, '中性合集.epub');
+});
+
+async function enableChapterReview(page: Page): Promise<void> {
+  const text = `《山城夜雨》《江湖旧事》\n\n《山城夜雨》\n\n这是第一篇的正文${'字'.repeat(4500)}。\n\n江湖旧事\n\n第一章 开始\n这是第二篇的章节。`;
+  await page.locator('input[type=file]').first().setInputFiles({ name: '中性合集.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await expect(page.getByRole('textbox', { name: '书名' })).toHaveValue('中性合集');
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByLabel('DeepSeek API Key', { exact: false }).fill('sk-browser-test');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+}
+
 function collectPageErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('console', (message) => {
@@ -135,11 +185,11 @@ async function fillFirstFix(page: Page, word: string): Promise<void> {
   await censor.getByRole('textbox', { name: '第 1 处替换词' }).fill(word);
 }
 
-async function exportDownload(page: Page): Promise<Download> {
+async function exportDownload(page: Page, fileName = '测试小说.epub'): Promise<Download> {
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出 EPUB' }).click();
   const file = await download;
-  expect(file.suggestedFilename()).toBe('测试小说.epub');
+  expect(file.suggestedFilename()).toBe(fileName);
   return file;
 }
 

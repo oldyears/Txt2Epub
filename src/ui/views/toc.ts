@@ -3,11 +3,12 @@ import type { EditorController } from '../controller';
 import { button, closestWithData, dataNumber, h } from '../dom';
 
 export class TocView {
+  private readonly reviewButton = button({ label: '复查异常章节', variant: 'small', onClick: () => this.app.reviewChapters() });
   private readonly summary = h('p', { className: 'panel-summary' });
   private readonly list = h('ol', { className: 'toc-list' });
   readonly element = h('div', {
     className: 'toc',
-    children: [h('h2', { className: 'panel-title', text: '目录' }), this.summary, this.list],
+    children: [h('h2', { className: 'panel-title', text: '目录' }), this.summary, this.reviewButton, this.list],
   });
   private rows: HTMLElement[] = [];
   private highlighted?: HTMLElement;
@@ -18,6 +19,7 @@ export class TocView {
 
   render(): void {
     const { sections } = this.app.state;
+    this.reviewButton.disabled = !sections.length;
     this.summary.textContent = sectionSummary(sections);
     this.rows = [];
     this.highlighted = undefined;

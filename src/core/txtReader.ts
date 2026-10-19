@@ -23,7 +23,7 @@ function extractLeadingMeta(lines: string[]): LeadingMeta {
   const meta: LeadingMeta = { title: '', author: '', consumed: new Set() };
   for (const index of leadingNonEmptyIndices(lines)) {
     const groups = matchMetaLine(lines[index].trim());
-    if (!groups) continue;
+    if (!groups) break;
     meta.title ||= groups.title ?? '';
     meta.author ||= groups.author ?? '';
     meta.consumed.add(index);

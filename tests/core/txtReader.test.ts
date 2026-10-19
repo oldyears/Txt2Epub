@@ -45,4 +45,22 @@ describe('readTxt', () => {
     const source = readTxt({ name: 'x.txt', bytes: utf8(lines) });
     expect(source).toEqual({ meta: { title: 'x', author: '' }, rawLines: lines });
   });
+
+  it('preserves bracketed anthology story titles instead of consuming them as metadata', () => {
+    const lines = ['《山城夜雨》《江湖旧事》', '《山城夜雨》', '第一篇正文。', '《江湖旧事》', '第二篇正文。'];
+    const source = readTxt({ name: '合集.txt', bytes: utf8(lines) });
+    expect(source).toEqual({ meta: { title: '合集', author: '' }, rawLines: lines });
+  });
+
+  it('still reads anthology metadata before the inline catalogue', () => {
+    const contents = ['《山城夜雨》《江湖旧事》', '《山城夜雨》', '正文。', '《江湖旧事》', '正文。'];
+    const source = readTxt({ name: 'x.txt', bytes: utf8(['《总合集》', '作者：甲', ...contents]) });
+    expect(source).toEqual({ meta: { title: '总合集', author: '甲' }, rawLines: contents });
+  });
+
+  it('reads metadata before the catalogue even when that title is also listed', () => {
+    const contents = ['《山城夜雨》《江湖旧事》', '山城夜雨', '正文。', '江湖旧事', '正文。'];
+    const source = readTxt({ name: '合集.txt', bytes: utf8(['《山城夜雨》', '作者：甲', ...contents]) });
+    expect(source).toEqual({ meta: { title: '山城夜雨', author: '甲' }, rawLines: contents });
+  });
 });

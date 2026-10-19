@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../src/core/defaults';
 import { processSource } from '../../src/core/pipeline';
+import { buildSections } from '../../src/core/sections';
 import type { SourceDoc } from '../../src/core/types';
 
 const SAMPLE: SourceDoc = {
@@ -70,5 +71,13 @@ describe('processSource', () => {
 
   it('reports the remaining censor hit', () => {
     expect(hits).toEqual([{ lineIndex: 5, start: 6, end: 9, raw: '***' }]);
+  });
+
+  it('retains unmerged non-numbered titles for LLM review without auto-promoting them', () => {
+    const source: SourceDoc = { meta: SAMPLE.meta, rawLines: ['《山城夜雨》《江湖旧事》', '山城夜雨', '正文。', '江湖旧事', '正文。'] };
+    const result = processSource(source, DEFAULT_SETTINGS);
+    expect(result.reviewBase.lines[1]).toEqual({ kind: 'body', text: '山城夜雨' });
+    expect(buildSections(result.book.lines)[0].kind).toBe('preface');
+    expect(result.lineStarts[0]).toBe(0);
   });
 });
