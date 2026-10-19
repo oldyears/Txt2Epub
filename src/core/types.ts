@@ -1,0 +1,11 @@
+export type LineKind = 'volume' | 'chapter' | 'body';
+export type Line = { text: string; kind: LineKind };
+export type CoverImage = { data: Uint8Array; mediaType: string };
+export type BookMeta = { title: string; author: string; cover?: CoverImage };
+export type SourceDoc = { meta: BookMeta; rawLines: string[] };
+export type Book = { meta: BookMeta; lines: Line[] };
+export type CensorHit = { lineIndex: number; start: number; end: number; raw: string };
+export type DictEntry = { from: string; to: string };
+export type HeadingRules = { volume: string; chapter: string; maxLength: number };
+export type LlmConfig = { apiKey: string; model: string };
+export type Settings = { heading: HeadingRules; adPatterns: string[]; dictionary: DictEntry[]; llm: LlmConfig };
